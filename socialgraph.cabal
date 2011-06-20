@@ -44,7 +44,7 @@ Cabal-version:       >=1.2
 
 
 Executable socialgraph
-  GHC-Options:       -Wall -threaded -O3 -rtsopts -fno-spec-constr-count -funbox-strict-fields -fspec-constr -fliberate-case -fstatic-argument-transformation
+  GHC-Options:       -Wall -Werror -threaded -O3 -rtsopts -fno-spec-constr-count -funbox-strict-fields -fspec-constr -fliberate-case -fstatic-argument-transformation
   Hs-source-dirs:    src
   -- .hs or .lhs file containing the Main module.
   Main-is:           Main.hs
@@ -55,14 +55,13 @@ Executable socialgraph
                      hashable == 1.1.*,
                      hashmap == 1.2.*,
                      containers == 0.4.*,
-                     bimap == 0.2.*,
                      aeson == 0.3.*,
                      HTTP == 4000.1.*,
                      network == 2.3.*,
                      text == 0.11.*,
+                     xml == 1.3.*,
                      attoparsec == 0.9.*,
                      attoparsec-text == 0.8.*,
-                     hxt == 9.1.*,
                      cmdargs == 0.7.*
   
   -- Modules not exported by this package.

@@ -1,19 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Id where
 
-import Text.XML.HXT.Arrow.Pickle
 import Data.Text (Text)
-import Data.Gephi.Util
+import qualified Data.Text as Text
 import Data.Hashable
 
 class (Ord a, Eq a, Hashable a) => Id a where
   gephiIdType :: a -> Text
-  xpId :: PU a
+  xmlId :: a -> String
 
 instance Id Int where
   gephiIdType _ = "integer"
-  xpId = xpInt
+  xmlId = show
 
 instance Id Text where
   gephiIdType _ = "string"
-  xpId = xpTText
+  xmlId = Text.unpack

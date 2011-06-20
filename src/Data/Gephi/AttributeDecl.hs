@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.AttributeDecl where
 
-import Text.XML.HXT.Arrow.Pickle
+import Text.XML.Light
+import qualified Data.Maybe as Maybe
 import Data.Gephi.Mode
 import Data.Gephi.Attribute
 import Data.Gephi.Id
@@ -14,33 +15,23 @@ data AttributeDecl a =
                 }
   deriving (Show, Eq, Ord)
 
-xpAttributeDecl :: Id a => PU (AttributeDecl a)
-xpAttributeDecl =
-  xpElem "attributes" $
-  xpWrap (uncurry3 AttributeDecl,
-          \ decl -> (declClass decl, declMode decl, declAttrs decl)
-         ) $
-  xpTriple
-  (xpAttr "class" xpClass)
-  (xpOption $ xpAttr "mode" xpMode)
-  xpAttributes
+xmlAttributeDecl :: Id a => AttributeDecl a -> Element
+xmlAttributeDecl decl =
+  Element
+  (unqualified "attributes")
+  (Maybe.catMaybes [
+      Just . attribute "class" . xmlClass . declClass $ decl,
+      fmap (attribute "mode" . xmlMode) $ declMode decl])
+  (map Elem . xmlAttributes . declAttrs $ decl) Nothing
 
-xpAttributes :: Id a => PU [Attribute a]
-xpAttributes =
-  xpList xpAttribute
+xmlAttributes :: Id a => [Attribute a] -> [Element]
+xmlAttributes = map xmlAttribute
 
 data Class =
   ClassNode |
   ClassEdge
   deriving (Show, Eq, Ord)
 
-xpClass :: PU Class
-xpClass =
-  xpWrapMaybe (\ v -> case v of
-                  "node" -> Just ClassNode
-                  "edge" -> Just ClassEdge
-                  _ -> Nothing,
-               \ v -> case v of
-                 ClassNode -> "node"
-                 ClassEdge -> "edge"
-              ) xpTText
+xmlClass :: Class -> String
+xmlClass ClassNode = "node"
+xmlClass ClassEdge = "edge"

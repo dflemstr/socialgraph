@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Attribute where
 
-import Text.XML.HXT.Arrow.Pickle
+import Text.XML.Light
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Maybe as Maybe
 import Data.Gephi.Id
 import Data.Gephi.Util
 
@@ -15,19 +17,16 @@ data Attribute a =
             }
   deriving (Show, Eq, Ord)
 
-xpAttribute :: Id a => PU (Attribute a)
-xpAttribute =
-  xpElem "attribute" $
-  xpWrap (uncurry5 Attribute,
-          \ attr -> (attrId attr, attrTitle attr, attrType attr,
-                     attrDefault attr, attrOptions attr)
-         ) $
-  xp5Tuple
-  (xpAttr "id" xpId)
-  (xpAttr "title" xpTText)
-  (xpAttr "type" xpType)
-  (xpOption $ xpElem "default" xpTText)
-  (xpOption $ xpElem "options" xpTText)
+xmlAttribute :: Id a => Attribute a -> Element
+xmlAttribute attr =
+  Element (unqualified "attribute") [
+    attribute "id" . xmlId . attrId $ attr,
+    attribute "title" . Text.unpack . attrTitle $ attr,
+    attribute "type" . xmlType . attrType $ attr]
+  (Maybe.catMaybes [
+      fmap (Elem . element "default" . Text.unpack) $ attrDefault attr,
+      fmap (Elem . element "options" . Text.unpack) $ attrOptions attr])
+  Nothing
 
 data AttrType =
   AttrInteger |
@@ -40,25 +39,12 @@ data AttrType =
   AttrAnyURI
   deriving (Show, Eq, Ord)
 
-xpType :: PU AttrType
-xpType =
-  xpWrapMaybe (\ v -> case v of
-                  "integer" -> Just AttrInteger
-                  "long" -> Just AttrLong
-                  "double" -> Just AttrDouble
-                  "float" -> Just AttrFloat
-                  "boolean" -> Just AttrBoolean
-                  "liststring" -> Just AttrListString
-                  "string" -> Just AttrString
-                  "anyURI" -> Just AttrAnyURI
-                  _ -> Nothing,
-               \ v -> case v of
-                 AttrInteger -> "integer"
-                 AttrLong -> "long"
-                 AttrDouble -> "double"
-                 AttrFloat -> "float"
-                 AttrBoolean -> "boolean"
-                 AttrListString -> "liststring"
-                 AttrString -> "string"
-                 AttrAnyURI -> "anyURI"
-              ) xpTText
+xmlType :: AttrType -> String
+xmlType AttrInteger = "integer"
+xmlType AttrLong = "long"
+xmlType AttrDouble = "double"
+xmlType AttrFloat = "float"
+xmlType AttrBoolean = "boolean"
+xmlType AttrListString = "liststring"
+xmlType AttrString = "string"
+xmlType AttrAnyURI = "anyURI"

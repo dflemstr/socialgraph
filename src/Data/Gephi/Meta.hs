@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Meta where
 
-import Text.XML.HXT.Arrow.Pickle
+import Text.XML.Light
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Gephi.Util
+import qualified Data.Maybe as Maybe
 
 data Meta =
   Meta { metaLastModifiedDate :: Maybe Text
@@ -13,18 +15,11 @@ data Meta =
        }
   deriving (Show, Eq)
 
-xpMeta :: PU Meta
-xpMeta =
-  xpElem "meta" $
-  xpWrap (uncurry4 Meta,
-          \ meta -> (metaLastModifiedDate meta, metaCreator meta,
-                     metaKeywords meta, metaDescription meta)
-         ) $
-  xp4Tuple
-  (xpOption $ xpAttr "lastmodifieddate" xpTText)
-  (xpOption $ xpElem "creator" xpTText)
-  (xpOption $ xpElem "keywords" xpTText) 
-  (xpOption $ xpElem "description" xpTText)
-
-uncurry4 :: (a -> b -> c -> d -> e) -> (a, b, c, d) -> e
-uncurry4 f (a, b, c, d) = f a b c d
+xmlMeta :: Meta -> Element
+xmlMeta meta =
+  Element (unqualified "meta")
+  (maybe [] ((:[]) . attribute "lastmodifieddate" . Text.unpack) (metaLastModifiedDate meta))
+  (Maybe.catMaybes [
+    fmap (Elem . element "creator" . Text.unpack) $ metaCreator meta,
+    fmap (Elem . element "keywords" . Text.unpack) $ metaKeywords meta,
+    fmap (Elem . element "description" . Text.unpack) $ metaDescription meta]) Nothing

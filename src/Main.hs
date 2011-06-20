@@ -10,13 +10,13 @@ import qualified Data.SocialGraph.Graph as Graph
 import qualified Data.SocialGraph.Node as Node
 import qualified Network.JSON as JSON
 import qualified Network.SocialGraph.QueryResult as QueryResult
+import qualified Text.XML.Light as XML
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.HashSet as Set
 import qualified Data.List as List
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
-import Text.XML.HXT.Core hiding (err, mkAttr, (+=))
 import qualified Data.SocialGraph.Convert as Convert
 import System.Console.CmdArgs.Implicit
 import System.IO as IO
@@ -48,15 +48,10 @@ runWithConfig config = do
       levels = recurseLevels config
       getGephi = Convert.graphToGexf =<< getFullGraph mkURL allURIs levels
   gephi <- evalStateT getGephi StringCache.empty
-  log $ "Total number of nodes: " ++ (show . length . Gephi.graphNodes . Gephi.gexfGraph $ gephi)
-  log $ "Total number of edges: " ++ (show . length . Gephi.graphEdges . Gephi.gexfGraph $ gephi)
   log "Writing output..."
-  let xml = pickleDoc Gephi.xpGexf gephi
-  writeXml xml $ output config
+  let xml = Gephi.xmlGexf gephi
+  writeFile (output config) (XML.ppTopElement xml)
   log "Done."
-
-writeXml :: XmlTree -> String -> IO ()
-writeXml xml outp = void $ runX $ constA xml >>> indentDoc >>> writeDocument [] outp
 
 getFullGraph :: (Text -> Text) -> [Text] -> Int -> StateT StringCache IO Graph
 getFullGraph mkURL = go Graph.empty
@@ -108,6 +103,9 @@ putErrLn = IO.hPutStr IO.stderr . (++ "\n")
 
 log :: String -> IO ()
 log = whenLoud . putErrLn
+
+uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+uncurry3 f1 (a, b, c) = f1 a b c
 
 queryURL :: Configuration -> Text -> Text
 queryURL config uri =

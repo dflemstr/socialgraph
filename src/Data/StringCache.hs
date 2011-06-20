@@ -9,23 +9,32 @@ module Data.StringCache
        ) where
 
 import Control.Monad.State
-import Data.Bimap (Bimap)
-import qualified Data.Bimap as Bimap
+import Data.HashMap (Map)
+import qualified Data.HashMap as Map
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import Data.Text (Text)
 
 data StringCache = 
-  StringCache { stringLookup :: Bimap Int Text
+  StringCache { strings :: IntMap Text
+              , ids :: Map Text Int
               , stringCounter :: Int
               } deriving (Show)
 
 empty :: StringCache
-empty = StringCache Bimap.empty 0
+empty = StringCache IntMap.empty Map.empty 0
 
-getLookup :: Monad m => StateT StringCache m (Bimap Int Text)
-getLookup = return . stringLookup =<< get
+getStrings :: Monad m => StateT StringCache m (IntMap Text)
+getStrings = return . strings =<< get
 
-putLookup :: Monad m => Bimap Int Text -> StateT StringCache m ()
-putLookup l = modify $ \ c -> c { stringLookup = l }
+putStrings :: Monad m => IntMap Text -> StateT StringCache m ()
+putStrings s = modify $ \ c -> c { strings = s }
+
+getIds :: Monad m => StateT StringCache m (Map Text Int)
+getIds = return . ids =<< get
+
+putIds :: Monad m => Map Text Int -> StateT StringCache m ()
+putIds i = modify $ \ c -> c { ids = i }
 
 getCounter :: Monad m => StateT StringCache m Int
 getCounter = return . stringCounter =<< get
@@ -42,21 +51,23 @@ incrementCounter = do
 
 storeString :: Monad m => Text -> StateT StringCache m Int
 storeString string = do
-  m <- getLookup
-  if Bimap.memberR string m
-    then return $ (Bimap.!>) m string
-    else do c <- incrementCounter
-            putLookup $ Bimap.insert c string m
-            return c
+  idMap <- getIds
+  if string `Map.member` idMap
+    then return $ idMap Map.! string
+    else do count <- incrementCounter
+            stringMap <- getStrings
+            putStrings $ IntMap.insert count string stringMap
+            putIds $ Map.insert string count idMap
+            return count
 
 getStringMaybe :: Monad m => Int -> StateT StringCache m (Maybe Text)
-getStringMaybe k = return . Bimap.lookup k =<< getLookup
+getStringMaybe k = return . IntMap.lookup k =<< getStrings
 
 getString :: Monad m => Int -> StateT StringCache m Text
-getString k = return . (Bimap.! k) =<< getLookup
+getString k = return . (IntMap.! k) =<< getStrings
 
 hasString :: Monad m => Int -> StateT StringCache m Bool
-hasString k = return . Bimap.member k =<< getLookup
+hasString k = return . IntMap.member k =<< getStrings
 
 wasteId :: Monad m => StateT StringCache m Int
 wasteId = incrementCounter

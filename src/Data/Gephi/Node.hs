@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Node where
 
-import Text.XML.HXT.Arrow.Pickle
+import qualified Text.XML.Light as XML
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Gephi.Attvalue
 import Data.Gephi.Id
 import Data.Gephi.Util
@@ -19,13 +20,9 @@ instance Hashable a => Hashable (Node a) where
   hash = hash . nodeId
   hashWithSalt salt = hashWithSalt salt . nodeId
 
-xpNode :: Id a => PU (Node a)
-xpNode =
-  xpElem "node" $
-  xpWrap (uncurry3 Node,
-          \ n -> (nodeId n, nodeLabel n, nodeAttvalues n)
-         ) $
-  xpTriple
-  (xpAttr "id" xpId)
-  (xpAttr "label" xpTText)
-  (xpOption xpAttvalues)
+xmlNode :: Id a => Node a -> XML.Element
+xmlNode node =
+  XML.Element (unqualified "node") [
+    XML.Attr (unqualified "id") . xmlId . nodeId $ node,
+    XML.Attr (unqualified "label") . Text.unpack . nodeLabel $ node]
+  (maybe [] ((:[]) . XML.Elem . xmlAttvalues) $ nodeAttvalues node) Nothing

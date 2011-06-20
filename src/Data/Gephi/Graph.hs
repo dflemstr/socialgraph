@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Data.Gephi.Graph where
 
-import Control.Arrow
-import Text.XML.HXT.Arrow.Pickle
+import qualified Text.XML.Light as XML
 import qualified Data.Text as Text
+import qualified Data.Maybe as Maybe
 import Data.Gephi.Edge
 import Data.Gephi.Node
 import Data.Gephi.Mode
@@ -20,39 +20,31 @@ data Graph a =
         }
   deriving (Show, Eq)
 
-xpGraph :: forall a. Id a => PU (Graph a)
-xpGraph =
-  xpElem "graph" $
-  xpWrap (uncurry5 Graph,
-          \ graph -> (graphDefaultEdgeType graph,
-                      graphMode graph, graphNodes graph, graphEdges graph,
-                      graphAttributeDecls graph)
-         ) $
-  xpAddFixedAttr "idtype" (Text.unpack . gephiIdType $ (undefined :: a)) $
-  xp5Tuple
-  (xpAttr "defaultedgetype" xpEdgeType)
-  (xpOption $ xpAttr "mode" xpMode) xpNodes xpEdges xpAttributeDecls
+xmlGraph :: forall a. Id a => Graph a -> XML.Element
+xmlGraph graph =
+  XML.Element
+  (unqualified "graph")
+  (Maybe.catMaybes [
+      Just $ attribute "idtype" (Text.unpack . gephiIdType $ (undefined :: a)),
+      Just . attribute "defaultedgetype" . xmlEdgeType . graphDefaultEdgeType $ graph,
+      fmap (attribute "mode" . xmlMode) $ graphMode graph])
+  (map XML.Elem ((xmlNodes . graphNodes $ graph) :
+                 (xmlEdges . graphEdges $ graph) :
+                 (xmlAttributeDecls . graphAttributeDecls $ graph))) Nothing
 
-xpNodes :: Id a => PU [Node a]
-xpNodes =
-  xpElem "nodes" $
-  xpWrap ( snd,
-           length &&& id
-         ) $
-  xpPair
-  (xpAttr "count" xpInt)
-  (xpList xpNode)
+xmlNodes :: Id a => [Node a] -> XML.Element
+xmlNodes nodes =
+  XML.Element
+  (unqualified "nodes")
+  []
+  (map (XML.Elem . xmlNode) nodes) Nothing
 
-xpEdges :: Id a => PU [Edge a]
-xpEdges =
-  xpElem "edges" $
-  xpWrap ( snd,
-           length &&& id
-         ) $
-  xpPair
-  (xpAttr "count" xpInt)
-  (xpList xpEdge)
+xmlEdges :: Id a => [Edge a] -> XML.Element
+xmlEdges edges =
+  XML.Element
+  (unqualified "edges")
+  []
+  (map (XML.Elem . xmlEdge) edges) Nothing
 
-xpAttributeDecls :: Id a => PU [AttributeDecl a]
-xpAttributeDecls =
-  xpList xpAttributeDecl
+xmlAttributeDecls :: Id a => [AttributeDecl a] -> [XML.Element]
+xmlAttributeDecls = map xmlAttributeDecl

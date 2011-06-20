@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Attvalue where
 
-import Control.Arrow
-import Text.XML.HXT.Arrow.Pickle
+import Text.XML.Light
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Gephi.Id
 import Data.Gephi.Util
 
@@ -13,15 +13,13 @@ data Attvalue a =
            }
   deriving (Show, Eq, Ord)
 
-xpAttvalue :: Id a => PU (Attvalue a)
-xpAttvalue =
-  xpElem "attvalue" $
-  xpWrap (uncurry Attvalue, attvalueFor &&& attvalueValue) $
-  xpPair
-  (xpAttr "for" xpId)
-  (xpAttr "value" xpTText)
+xmlAttvalue :: Id a => Attvalue a -> Element
+xmlAttvalue att =
+  Element (unqualified "attvalue") [
+    Attr (unqualified "for") $ xmlId $ attvalueFor att,
+    Attr (unqualified "value") $ Text.unpack $ attvalueValue att
+    ] [] Nothing
 
-xpAttvalues :: Id a => PU [Attvalue a]
-xpAttvalues =
-  xpElem "attvalues" $
-  xpList xpAttvalue
+xmlAttvalues :: Id a => [Attvalue a] -> Element
+xmlAttvalues atts =
+  Element (unqualified "attvalues") [] (map (Elem . xmlAttvalue) atts) Nothing

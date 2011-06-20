@@ -1,12 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Edge where
 
-import Text.XML.HXT.Arrow.Pickle
+import Text.XML.Light
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Gephi.Id
 import Data.Gephi.Attvalue
 import Data.Gephi.Util
 import Data.Hashable
+import qualified Data.Maybe as Maybe
 
 data Edge a =
   Edge { edgeId :: a
@@ -23,22 +25,18 @@ instance Hashable a => Hashable (Edge a) where
   hash = hash . edgeId
   hashWithSalt salt = hashWithSalt salt . edgeId
 
-xpEdge :: Id a => PU (Edge a)
-xpEdge =
-  xpElem "edge" $
-  xpWrap (uncurry7 Edge,
-          \ e -> (edgeId e, edgeType e, edgeLabel e,
-                  edgeSource e, edgeTarget e, edgeWeight e,
-                  edgeAttvalues e)
-         ) $
-  xp7Tuple
-  (xpAttr "id" xpId)
-  (xpOption $ xpAttr "type" xpEdgeType)
-  (xpOption $ xpAttr "label" xpTText)
-  (xpAttr "source" xpId)
-  (xpAttr "target" xpId)
-  (xpOption $ xpAttr "weight" xpAny)
-  (xpOption xpAttvalues)
+xmlEdge :: Id a => Edge a -> Element
+xmlEdge edge =
+  Element
+  (unqualified "edge")
+  (Maybe.catMaybes [
+      Just . attribute "id" . xmlId . edgeId $ edge,
+      fmap (attribute "type" . xmlEdgeType) $ edgeType edge,
+      fmap (attribute "label" . Text.unpack) $ edgeLabel edge,
+      Just . attribute "source" . xmlId . edgeSource $ edge,
+      Just . attribute "target" . xmlId . edgeTarget $ edge,
+      fmap (attribute "weight" . show) $ edgeWeight edge])
+  (maybe [] ((:[]) . Elem . xmlAttvalues) $ edgeAttvalues edge) Nothing
 
 data EdgeType =
   EdgeDirected |
@@ -46,15 +44,7 @@ data EdgeType =
   EdgeMutual
   deriving (Show, Eq, Ord)
 
-xpEdgeType :: PU EdgeType
-xpEdgeType =
-  xpWrapMaybe (\ v -> case v of
-                  "directed" -> Just EdgeDirected
-                  "undirected" -> Just EdgeUndirected
-                  "mutual" -> Just EdgeMutual
-                  _ -> Nothing,
-               \ v -> case v of
-                 EdgeDirected -> "directed"
-                 EdgeUndirected -> "undirected"
-                 EdgeMutual -> "mutual"
-              ) xpTText
+xmlEdgeType :: EdgeType -> String
+xmlEdgeType EdgeDirected = "directed"
+xmlEdgeType EdgeUndirected = "undirected"
+xmlEdgeType EdgeMutual = "mutual"

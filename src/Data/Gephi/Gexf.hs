@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Gephi.Gexf where
 
-import Control.Arrow
-import Text.XML.HXT.Arrow.Pickle
+import qualified Text.XML.Light as XML
+import qualified Data.Maybe as Maybe
 import Data.Gephi.Meta
 import Data.Gephi.Graph
 import Data.Gephi.Id
+import Data.Gephi.Util
 
 data Gexf a =
   Gexf { gexfMeta :: Maybe Meta
@@ -13,12 +14,14 @@ data Gexf a =
        }
   deriving (Show, Eq)
 
-xpGexf :: Id a => PU (Gexf a)
-xpGexf =
-  xpElem "gexf" $
-  xpAddFixedAttr "xmlns" "http://www.gexf.net/1.2draft" $
-  xpAddFixedAttr "xmlns:xsi" "http://www.w3.org/2001/XMLSchema-instance" $
-  xpAddFixedAttr "xsi:schemaLocation" "http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" $
-  xpAddFixedAttr "version" "1.2" $
-  xpWrap (uncurry Gexf, gexfMeta &&& gexfGraph) $
-  xpPair (xpOption xpMeta) xpGraph
+xmlGexf :: Id a => Gexf a -> XML.Element
+xmlGexf gexf =
+  XML.Element (unqualified "gexf") [
+    attribute "xmlns" "http://www.gexf.net/1.2draft",
+    attribute "xmlns:xsi" "http://www.w3.org/2001/XMLSchema-instance",
+    attribute "xsi:schemaLocation" "http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd",
+    attribute "version" "1.2"]
+  (Maybe.catMaybes [
+      Just . XML.Elem . xmlGraph . gexfGraph $ gexf,
+      fmap (XML.Elem . xmlMeta) $ gexfMeta gexf]
+  ) Nothing
