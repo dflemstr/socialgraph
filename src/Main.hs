@@ -50,7 +50,8 @@ runWithConfig config = do
   gephi <- evalStateT getGephi StringCache.empty
   log "Writing output..."
   let xml = Gephi.xmlGexf gephi
-  writeFile (output config) (XML.ppTopElement xml)
+      write = if null $ output config then putStrLn else writeFile $ output config
+  write $ XML.ppTopElement xml
   log "Done."
 
 getFullGraph :: (Text -> Text) -> [Text] -> Int -> StateT StringCache IO Graph

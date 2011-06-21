@@ -48,7 +48,7 @@ filterEmptyList (Just ls) = ls
 toGraph :: Monad m => QueryResult -> StateT StringCache m Graph
 toGraph qresult = do
   resultNodes <- mapM makeNode urls
-  resultEdges <- mapM (uncurry3 makeEdge) $ edgeData
+  resultEdges <- mapM (uncurry3 makeEdge) edgeData
   Graph.addGhostNodes $ Graph.Graph (Set.fromList resultNodes) (Set.fromList resultEdges)
     where
       qnodes = nodes qresult
