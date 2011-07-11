@@ -9,20 +9,20 @@ module Data.StringCache
        ) where
 
 import Control.Monad.State
-import Data.HashMap (Map)
-import qualified Data.HashMap as Map
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Text (Text)
 
-data StringCache = 
+data StringCache =
   StringCache { strings :: IntMap Text
-              , ids :: Map Text Int
+              , ids :: HashMap Text Int
               , stringCounter :: Int
               } deriving (Show)
 
 empty :: StringCache
-empty = StringCache IntMap.empty Map.empty 0
+empty = StringCache IntMap.empty HashMap.empty 0
 
 getStrings :: Monad m => StateT StringCache m (IntMap Text)
 getStrings = return . strings =<< get
@@ -30,10 +30,10 @@ getStrings = return . strings =<< get
 putStrings :: Monad m => IntMap Text -> StateT StringCache m ()
 putStrings s = modify $ \ c -> c { strings = s }
 
-getIds :: Monad m => StateT StringCache m (Map Text Int)
+getIds :: Monad m => StateT StringCache m (HashMap Text Int)
 getIds = return . ids =<< get
 
-putIds :: Monad m => Map Text Int -> StateT StringCache m ()
+putIds :: Monad m => HashMap Text Int -> StateT StringCache m ()
 putIds i = modify $ \ c -> c { ids = i }
 
 getCounter :: Monad m => StateT StringCache m Int
@@ -52,13 +52,14 @@ incrementCounter = do
 storeString :: Monad m => Text -> StateT StringCache m Int
 storeString string = do
   idMap <- getIds
-  if string `Map.member` idMap
-    then return $ idMap Map.! string
-    else do count <- incrementCounter
-            stringMap <- getStrings
-            putStrings $ IntMap.insert count string stringMap
-            putIds $ Map.insert string count idMap
-            return count
+  case string `HashMap.lookup` idMap of
+    Just key -> return key
+    Nothing -> do
+      count <- incrementCounter
+      stringMap <- getStrings
+      putStrings $ IntMap.insert count string stringMap
+      putIds $ HashMap.insert string count idMap
+      return count
 
 getStringMaybe :: Monad m => Int -> StateT StringCache m (Maybe Text)
 getStringMaybe k = return . IntMap.lookup k =<< getStrings

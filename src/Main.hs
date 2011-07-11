@@ -7,13 +7,12 @@ import Control.Monad.State
 import qualified Data.Gephi as Gephi
 import Data.SocialGraph.Graph (Graph)
 import qualified Data.SocialGraph.Graph as Graph
-import qualified Data.SocialGraph.Node as Node
 import qualified Network.JSON as JSON
 import qualified Network.SocialGraph.QueryResult as QueryResult
 import qualified Text.XML.Light as XML
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.HashSet as Set
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.List as List
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
@@ -30,6 +29,7 @@ data Configuration =
                 , allIdentities :: Bool
                 , onlyIdentities :: Bool
                 , recurseLevels :: Int
+                , maxEdgesPerNode :: Int
                 , uris :: [String]
                 }
   deriving (Show, Data, Typeable)
@@ -62,7 +62,7 @@ getFullGraph mkURL = go Graph.empty
         lift $ log $ "Fetching identities (" ++ show r ++ " recursions left)"
         newGraph <- fetchGraphs mkURL urls
         let !combinedGraph = newGraph `Graph.merge` graph
-        newUrls <- mapM (StringCache.getString . Node.key) ((Set.toList . Graph.nodes) newGraph)
+        newUrls <- mapM (StringCache.getString . fst) ((HashMap.toList . Graph.nodes) newGraph)
         go combinedGraph newUrls $ r - 1
 
 getURIs :: Configuration -> IO [Text]
@@ -123,7 +123,7 @@ typBoolean = typ "true|false"
 
 configuration :: String -> Annotate Ann
 configuration pname =
-  record (Configuration "" "" False False False False 0 []) [
+  record (Configuration "" "" False False False False 0 0 []) [
     file :=
       def
       += help "A file containing a list of identity URLs"
@@ -165,14 +165,20 @@ configuration pname =
     , recurseLevels :=
       def
       += explicit
-      += help "The number of levels to recursively fetch data. Values above 1 are not recommended."
+      += help "TODO The number of levels to recursively fetch data. Values above 1 are not recommended."
       += name "r"
       += name "recurse"
+    , maxEdgesPerNode :=
+      def
+      += explicit
+      += help "The maximum number of edges a node can have before it is discarded."
+      += name "e"
+      += name "max-edges"
     , uris :=
       def
       += args
       += typ "URI"
     ]
   += program pname
-  += summary (pname ++ " queries the Google SocialGraph API and produces Gephi graphs out of the fetched data")
+  += summary (pname ++ " v0.1")
   += verbosity

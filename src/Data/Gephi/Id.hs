@@ -3,9 +3,8 @@ module Data.Gephi.Id where
 
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Hashable
 
-class (Ord a, Eq a, Hashable a) => Id a where
+class (Ord a, Eq a) => Id a where
   gephiIdType :: a -> Text
   xmlId :: a -> String
 

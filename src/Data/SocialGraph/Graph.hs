@@ -9,43 +9,46 @@ import Control.Monad.State
 import Data.SocialGraph.Node (Node)
 import qualified Data.SocialGraph.Node as Node
 import Data.SocialGraph.Edge (Edge)
-import qualified Data.SocialGraph.Edge as Edge
 import qualified Data.SocialGraph.Identity as Identity
-import Data.HashSet (Set)
-import qualified Data.HashSet as Set
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.IntSet as IntSet
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
 
 data Graph =
-  Graph { nodes :: Set Node
-        , edges :: Set Edge
+  Graph { nodes :: HashMap Key Node
+        , edges :: HashMap (Key, Key) Edge
         }
   deriving (Show, Eq)
 
+type Key = Int
+
 merge :: Graph -> Graph -> Graph
 merge graph1 graph2 =
-  Graph { nodes = nodes graph1 `Set.union` nodes graph2
-        , edges = edges graph1 `Set.union` edges graph2
+  Graph { nodes = nodes graph1 `HashMap.union` nodes graph2
+        , edges = edges graph1 `HashMap.union` edges graph2
         }
 
 empty :: Graph
-empty = Graph Set.empty Set.empty
+empty = Graph HashMap.empty HashMap.empty
 
 addGhostNodes :: Monad m => Graph -> StateT StringCache m Graph
 addGhostNodes graph = do
-  ghostNodes <- mapM makeNode $ Set.toList unregistered
-  return Graph { nodes = nodes graph `Set.union` Set.fromList ghostNodes
+  ghostNodes <- mapM makeNode $ IntSet.toList unregistered
+  return Graph { nodes = nodes graph `HashMap.union` HashMap.fromList ghostNodes
                , edges = edges graph
                }
   where
-    es = edges graph
-    outgoing = Set.map Edge.toNode es
-    incoming = Set.map Edge.fromNode es
-    allExternal = outgoing `Set.union` incoming
-    registered = Set.map Node.key $ nodes graph
-    unregistered = allExternal `Set.difference` registered
+    keys = HashMap.keys . edges $ graph
+    outgoing = IntSet.fromList . map snd $ keys
+    incoming = IntSet.fromList . map fst $ keys
+    allExternal = outgoing `IntSet.union` incoming
+    registered = IntSet.fromList . HashMap.keys . nodes $ graph
+    unregistered = allExternal `IntSet.difference` registered
     makeNode k = do
       url <- StringCache.getString k
-      return Node.Node { Node.key = k
-                       , Node.identity = Identity.make url
-                       }
+      return (k,
+              Node.Node { Node.identity = Identity.make url
+                        , Node.attributes = []
+                        })

@@ -7,18 +7,13 @@ import qualified Data.Text as Text
 import Data.Gephi.Attvalue
 import Data.Gephi.Id
 import Data.Gephi.Util
-import Data.Hashable
 
 data Node a =
   Node { nodeId :: a
        , nodeLabel :: Text
        , nodeAttvalues :: Maybe [Attvalue a]
        }
-  deriving (Show, Eq, Ord)
-
-instance Hashable a => Hashable (Node a) where
-  hash = hash . nodeId
-  hashWithSalt salt = hashWithSalt salt . nodeId
+  deriving (Show, Eq)
 
 xmlNode :: Id a => Node a -> XML.Element
 xmlNode node =

@@ -9,7 +9,7 @@ import qualified Data.SocialGraph.Node as Node
 import qualified Data.SocialGraph.Edge as Edge
 import qualified Data.SocialGraph.Identity as Identity
 import qualified Data.Text as Text
-import qualified Data.HashSet as Set
+import qualified Data.HashMap.Strict as HashMap
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
 import qualified Data.Maybe as Maybe
@@ -23,9 +23,9 @@ graphToGexf graph = do
 
 graphToGephiGraph :: Monad m => Graph -> StateT StringCache m (Gephi.Graph Int)
 graphToGephiGraph graph = do
-  edges <- mapM makeGephiEdge . Set.toList $ Graph.edges graph
-  let decls = [edgeAttributeDecl]
-      nodes = map makeGephiNode . Set.toList $ Graph.nodes graph
+  edges <- mapM (\ ((f,t),v) -> makeGephiEdge f t v) . HashMap.toList $ Graph.edges graph
+  let decls = [nodeAttributeDecl, edgeAttributeDecl]
+      nodes = map (uncurry makeGephiNode) . HashMap.toList $ Graph.nodes graph
   return Gephi.Graph { Gephi.graphDefaultEdgeType = Gephi.EdgeDirected
                      , Gephi.graphMode = Just Gephi.ModeStatic
                      , Gephi.graphNodes = nodes
@@ -33,26 +33,47 @@ graphToGephiGraph graph = do
                      , Gephi.graphAttributeDecls = decls
                      }
 
-makeGephiNode :: Node.Node -> Gephi.Node Int
-makeGephiNode node = Gephi.Node { Gephi.nodeId = Node.key node
-                                , Gephi.nodeLabel = Identity.display . Node.identity $ node
-                                , Gephi.nodeAttvalues = Nothing
-                                }
+makeGephiNode :: Int -> Node.Node -> Gephi.Node Int
+makeGephiNode key node =
+  Gephi.Node { Gephi.nodeId = key
+             , Gephi.nodeLabel = Identity.display . Node.identity $ node
+             , Gephi.nodeAttvalues = if null attvalues then Nothing else Just attvalues
+             }
+  where
+    attvalues = mkAttvalues . Node.attributes $ node
+    mkAttvalues = map (\ (kind, text) -> Gephi.Attvalue (fromEnum kind) text)
 
-makeGephiEdge :: Monad m => Edge.Edge -> StateT StringCache m (Gephi.Edge Int)
-makeGephiEdge edge = do
+makeGephiEdge :: Monad m => Int -> Int -> Edge.Edge -> StateT StringCache m (Gephi.Edge Int)
+makeGephiEdge fromKey toKey edge = do
   edgeId <- StringCache.wasteId
   return Gephi.Edge { Gephi.edgeId = edgeId
                     , Gephi.edgeType = Just Gephi.EdgeDirected
                     , Gephi.edgeLabel = Maybe.listToMaybe kindNames
-                    , Gephi.edgeSource = Edge.fromNode edge
-                    , Gephi.edgeTarget = Edge.toNode edge
+                    , Gephi.edgeSource = fromKey
+                    , Gephi.edgeTarget = toKey
                     , Gephi.edgeWeight = Nothing
                     , Gephi.edgeAttvalues = if null attvalues then Nothing else Just attvalues
                     }
   where
     attvalues = [Gephi.Attvalue 0 $ Text.intercalate "|" kindNames]
-    kindNames = map Edge.edgeKindName . Edge.kinds $ edge
+    kindNames = map Edge.edgeKindName . Edge.edgeKinds $ edge
+
+nodeAttributeDecl :: Gephi.AttributeDecl Int
+nodeAttributeDecl =
+  Gephi.AttributeDecl { Gephi.declClass = Gephi.ClassNode
+                      , Gephi.declMode = Just Gephi.ModeStatic
+                      , Gephi.declAttrs = attrs
+                      }
+  where
+    attrs = map mkAttr [minBound .. maxBound]
+    mkAttr :: Node.AttributeKind -> Gephi.Attribute Int
+    mkAttr kind =
+      Gephi.Attribute { Gephi.attrId = fromEnum kind
+                      , Gephi.attrTitle = Text.pack . show $ kind
+                      , Gephi.attrType = Gephi.AttrString
+                      , Gephi.attrDefault = Nothing
+                      , Gephi.attrOptions = Nothing
+                      }
 
 edgeAttributeDecl :: Gephi.AttributeDecl Int
 edgeAttributeDecl =

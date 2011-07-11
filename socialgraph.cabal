@@ -52,9 +52,8 @@ Executable socialgraph
   -- Packages needed in order to build this package.
   Build-depends:     base == 4.*,
                      mtl == 2.0.*,
-                     hashable == 1.1.*,
-                     hashmap == 1.2.*,
                      containers == 0.4.*,
+                     unordered-containers == 0.1.*,
                      aeson == 0.3.*,
                      HTTP == 4000.1.*,
                      network == 2.3.*,

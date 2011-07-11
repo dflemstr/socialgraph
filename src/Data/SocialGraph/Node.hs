@@ -1,27 +1,44 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.SocialGraph.Node 
+module Data.SocialGraph.Node
        ( Node(..)
-       , Key
+       , AttributeKind(..)
+       , attributeKindName
+       , identifyAttributeKind
        ) where
 
 import Data.SocialGraph.Identity (Identity)
-import Data.Hashable
+import Data.Text (Text)
 
 data Node =
-  Node { key :: !Key
-       , identity :: !Identity
-       } deriving (Show)
+  Node { identity :: !Identity
+       , attributes :: [(AttributeKind, Text)]
+       } deriving (Eq, Show, Ord)
 
-instance Hashable Node where
-  hash = hash . key
-  hashWithSalt salt = hashWithSalt salt . key
+data AttributeKind =
+  URL |
+  Profile |
+  RSS |
+  Atom |
+  FOAF |
+  Photo |
+  Name
+  deriving (Eq, Show, Ord, Enum, Bounded)
 
-instance Eq Node where
-  Node k1 _ == Node k2 _ =
-    k1 == k2
+attributeKindName :: AttributeKind -> Text
+attributeKindName URL = "url"
+attributeKindName Profile = "profile"
+attributeKindName RSS = "rss"
+attributeKindName Atom = "atom"
+attributeKindName FOAF = "foaf"
+attributeKindName Photo = "photo"
+attributeKindName Name = "name"
 
-instance Ord Node where
-  Node k1 _ `compare` Node k2 _ =
-    k1 `compare` k2
-
-type Key = Int
+identifyAttributeKind :: Text -> Maybe AttributeKind
+identifyAttributeKind "url"     = Just URL
+identifyAttributeKind "profile" = Just Profile
+identifyAttributeKind "rss"     = Just RSS
+identifyAttributeKind "atom"    = Just Atom
+identifyAttributeKind "foaf"    = Just FOAF
+identifyAttributeKind "photo"   = Just Photo
+identifyAttributeKind "name"    = Just Name
+identifyAttributeKind _         = Nothing

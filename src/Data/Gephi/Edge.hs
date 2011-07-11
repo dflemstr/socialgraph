@@ -7,7 +7,6 @@ import qualified Data.Text as Text
 import Data.Gephi.Id
 import Data.Gephi.Attvalue
 import Data.Gephi.Util
-import Data.Hashable
 import qualified Data.Maybe as Maybe
 
 data Edge a =
@@ -20,10 +19,6 @@ data Edge a =
        , edgeAttvalues :: Maybe [Attvalue a]
        }
   deriving (Show, Eq, Ord)
-
-instance Hashable a => Hashable (Edge a) where
-  hash = hash . edgeId
-  hashWithSalt salt = hashWithSalt salt . edgeId
 
 xmlEdge :: Id a => Edge a -> Element
 xmlEdge edge =

@@ -2,23 +2,10 @@
 module Data.SocialGraph.Edge where
 
 import Data.Text (Text)
-import qualified Data.SocialGraph.Node as Node
-import Data.Hashable
-import Control.Arrow
 
 data Edge =
-  Edge { fromNode :: !Node.Key
-       , toNode :: !Node.Key
-       , kinds :: ![EdgeKind]
-       } deriving (Show, Ord)
-
-instance Eq Edge where
-  Edge from1 to1 _ == Edge from2 to2 _ =
-    from1 == from2 && to1 == to2
-
-instance Hashable Edge where
-  hash = hash . (fromNode &&& toNode)
-  hashWithSalt salt = hashWithSalt salt . (fromNode &&& toNode)
+  Edge { edgeKinds :: ![EdgeKind]
+       } deriving (Show, Eq, Ord)
 
 data EdgeKind =
   Me |

@@ -1,38 +1,40 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.SocialGraph.QueryResult 
-       ( QueryResult(..)
+module Network.SocialGraph.QueryResult
+       ( QueryGraph(..)
        , QueryNode(..)
        , QueryEdge(..)
        , toGraph
        ) where
 
 import Control.Applicative
+import Control.Arrow
 import Control.Monad
 import Control.Monad.State
 import Data.Aeson
 import Data.Text (Text)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.HashSet as Set
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
+import Data.SocialGraph.Node (Node)
 import qualified Data.SocialGraph.Node as Node
+import Data.SocialGraph.Edge (Edge)
 import qualified Data.SocialGraph.Edge as Edge
 import Data.SocialGraph.Graph (Graph)
 import qualified Data.SocialGraph.Graph as Graph
 import qualified Data.SocialGraph.Identity as Identity
 import qualified Data.Maybe as Maybe
 
-data QueryResult =
-  QueryResult { canonicalMapping :: Map Text Text
-              , nodes :: Map Text QueryNode
-              }
+data QueryGraph =
+  QueryGraph { canonicalHashMapping :: HashMap Text Text
+             , nodes :: HashMap Text QueryNode
+             }
   deriving (Show, Eq)
 
 data QueryNode =
-  QueryNode { attributes :: Map Text Text
-            , nodesReferenced :: Maybe (Map Text QueryEdge)
-            , nodesReferencedBy :: Maybe (Map Text QueryEdge)
+  QueryNode { attributes :: HashMap Text Text
+            , nodesReferenced :: Maybe (HashMap Text QueryEdge)
+            , nodesReferencedBy :: Maybe (HashMap Text QueryEdge)
             }
   deriving (Show, Eq)
 
@@ -41,63 +43,85 @@ data QueryEdge =
             }
   deriving (Show, Eq)
 
-filterEmptyList :: Maybe [k] -> [k]
-filterEmptyList (Nothing) = []
-filterEmptyList (Just ls) = ls
-
-toGraph :: Monad m => QueryResult -> StateT StringCache m Graph
+toGraph :: Monad m => QueryGraph -> StateT StringCache m Graph
 toGraph qresult = do
-  resultNodes <- mapM makeNode urls
-  resultEdges <- mapM (uncurry3 makeEdge) edgeData
-  Graph.addGhostNodes $ Graph.Graph (Set.fromList resultNodes) (Set.fromList resultEdges)
-    where
-      qnodes = nodes qresult
-      urls = Map.keys qnodes
-      referencedOf =
-        filterEmptyList . fmap Map.keys . nodesReferenced . (Map.!) qnodes
-      referencedByOf =
-        filterEmptyList . fmap Map.keys . nodesReferencedBy . (Map.!) qnodes
-      typesOf nodeName references outerName =
-        let node = (Map.!) qnodes nodeName
-            maybeRefs = references node
-        in case maybeRefs of
-          Nothing -> []
-          Just refs ->
-            let edge = (Map.!) refs outerName
-            in types edge
-      edgeData = incomingEdgeData ++ outgoingEdgeData
-      incomingEdgeData = do
-        node  <- urls
-        from <- referencedByOf node
-        return (from, node, typesOf node nodesReferencedBy from)
-      outgoingEdgeData = do
-        node  <- urls
-        to <- referencedOf node
-        return (node, to, typesOf node nodesReferenced to)
+  nodesSC <- storeNodes $ nodes qresult
+  edgesSC <- storeEdges . HashMap.map fst $ nodesSC
+  Graph.addGhostNodes
+    Graph.Graph { Graph.nodes = HashMap.map snd nodesSC
+                , Graph.edges = HashMap.map toEdge edgesSC
+                }
 
-makeNode :: Monad m => Text -> StateT StringCache m Node.Node
-makeNode url = do
-  key <- StringCache.storeString url
-  return Node.Node { Node.key = key
-                   , Node.identity = Identity.make url
-                   }
+toNode :: Text -> QueryNode -> Node
+toNode url qnode =
+  Node.Node { Node.identity = Identity.make url
+            , Node.attributes = attrs
+            }
+  where
+    attrs = do
+      (kindName, value) <- HashMap.toList . attributes $ qnode
+      case Node.identifyAttributeKind kindName of
+        Just kind -> return (kind, value)
+        Nothing -> mzero
 
-makeEdge :: Monad m => Text -> Text -> [Text] -> StateT StringCache m Edge.Edge
-makeEdge from to ts = do
-  keyFrom <- StringCache.storeString from
-  keyTo <- StringCache.storeString to
-  return Edge.Edge { Edge.fromNode = keyFrom
-                   , Edge.toNode = keyTo
-                   , Edge.kinds = kinds
-                   }
-    where kinds = Maybe.mapMaybe Edge.identifyEdgeKind ts
+toEdge :: QueryEdge -> Edge
+toEdge qedge =
+  Edge.Edge { Edge.edgeKinds = kinds }
+  where
+    kinds = Maybe.mapMaybe Edge.identifyEdgeKind . types $ qedge
 
-uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
-uncurry3 f1 (a, b, c) = f1 a b c
+storeNodes :: Monad m
+              => HashMap Text QueryNode
+              -> StateT StringCache m (HashMap Int (QueryNode, Node))
+storeNodes nodeHashMap = do
+  let assocs = map (\ (k, v) -> (k, (v, toNode k v))) $ HashMap.toList nodeHashMap
+  assocsSC <- mapM (doLeft StringCache.storeString) assocs
+  return $ HashMap.fromList assocsSC
 
-instance FromJSON QueryResult where
+storeEdges :: Monad m
+              => HashMap Int QueryNode
+              -> StateT StringCache m (HashMap (Int, Int) QueryEdge)
+storeEdges nodesSC = do
+  edgesd <- mapM combine edges
+  return . HashMap.fromList $ concat edgesd
+  where
+    edges = map insAndOuts . HashMap.toList $ nodesSC
+    insAndOuts = uncurry storeEdgesOut &&& uncurry storeEdgesIn
+    combine (a, b) = do
+      as <- a
+      bs <- b
+      return $ as ++ bs
+
+storeEdgesOut :: Monad m
+                 => Int
+                 -> QueryNode
+                 -> StateT StringCache m [((Int, Int), QueryEdge)]
+storeEdgesOut inKey node = do
+  let assocs = HashMap.toList =<< (Maybe.maybeToList . nodesReferenced $ node)
+  assocsSC <- mapM (doLeft StringCache.storeString) assocs
+  return $ map regroup assocsSC
+  where
+    regroup (outKey, edge) = ((inKey, outKey), edge)
+
+storeEdgesIn :: Monad m
+                => Int
+                -> QueryNode
+                -> StateT StringCache m [((Int, Int), QueryEdge)]
+storeEdgesIn outKey node = do
+  let assocs = HashMap.toList =<< (Maybe.maybeToList . nodesReferencedBy $ node)
+  assocsSC <- mapM (doLeft StringCache.storeString) assocs
+  return $ map regroup assocsSC
+  where
+    regroup (inKey, edge) = ((inKey, outKey), edge)
+
+doLeft :: Monad m => (a -> m b) -> (a, c) -> m (b, c)
+doLeft f (l, r) = do
+  nl <- f l
+  return (nl, r)
+
+instance FromJSON QueryGraph where
   parseJSON (Object o) =
-    QueryResult
+    QueryGraph
     <$> o .: "canonical_mapping"
     <*> o .: "nodes"
   parseJSON _ = mzero
