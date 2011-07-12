@@ -165,13 +165,13 @@ configuration pname =
     , recurseLevels :=
       def
       += explicit
-      += help "TODO The number of levels to recursively fetch data. Values above 1 are not recommended."
+      += help "The number of levels to recursively fetch data. Values above 1 are not recommended."
       += name "r"
       += name "recurse"
     , maxEdgesPerNode :=
       def
       += explicit
-      += help "The maximum number of edges a node can have before it is discarded."
+      += help "TODO The maximum number of edges a node can have before it is discarded."
       += name "e"
       += name "max-edges"
     , uris :=
