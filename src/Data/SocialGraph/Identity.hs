@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.SocialGraph.Identity 
+module Data.SocialGraph.Identity
        ( Identity(..)
        , display
        , make
@@ -26,6 +26,7 @@ data Identity =
   deriving (Show, Eq, Ord)
 
 display :: Identity -> Text
+display (Ident "twitter.com" tname) = "@" `Text.append` tname
 display (Ident turi tname) = tname `Text.append` " on " `Text.append` turi
 display (PK turi ipk) = "Database entry " `Text.append` (Text.pack . show $ ipk) `Text.append` " on " `Text.append` turi
 display (URL turi) = "Site " `Text.append` turi

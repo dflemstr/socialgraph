@@ -43,14 +43,16 @@ data QueryEdge =
             }
   deriving (Show, Eq)
 
-toGraph :: Monad m => QueryGraph -> StateT StringCache m Graph
-toGraph qresult = do
+toGraph :: Monad m => Bool -> QueryGraph -> StateT StringCache m Graph
+toGraph close qresult = do
   nodesSC <- storeNodes $ nodes qresult
   edgesSC <- storeEdges . HashMap.map fst $ nodesSC
-  Graph.addGhostNodes
-    Graph.Graph { Graph.nodes = HashMap.map snd nodesSC
-                , Graph.edges = HashMap.map toEdge edgesSC
-                }
+  let pureGraph = Graph.Graph { Graph.nodes = HashMap.map snd nodesSC
+                              , Graph.edges = HashMap.map toEdge edgesSC
+                              }
+  if close
+    then return pureGraph
+    else Graph.addGhostNodes pureGraph
 
 toNode :: Text -> QueryNode -> Node
 toNode url qnode =

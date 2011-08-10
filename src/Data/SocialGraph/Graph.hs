@@ -3,6 +3,7 @@ module Data.SocialGraph.Graph
        , merge
        , empty
        , addGhostNodes
+       , cleanEdges
        ) where
 
 import Control.Monad.State
@@ -32,6 +33,13 @@ merge graph1 graph2 =
 
 empty :: Graph
 empty = Graph HashMap.empty HashMap.empty
+
+cleanEdges :: Graph -> Graph
+cleanEdges g =
+  g { edges = HashMap.filterWithKey (\ (k1, k2) _ -> nodeExists k1 && nodeExists k2) $ edges g }
+  where
+    nodeExists = flip IntSet.member keys
+    keys = IntSet.fromList . HashMap.keys . nodes $ g
 
 addGhostNodes :: Monad m => Graph -> StateT StringCache m Graph
 addGhostNodes graph = do

@@ -14,6 +14,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import Data.Text (Text)
+import qualified Data.Text as Text
 
 data StringCache =
   StringCache { strings :: IntMap Text
@@ -50,8 +51,9 @@ incrementCounter = do
   return newCounter
 
 storeString :: Monad m => Text -> StateT StringCache m Int
-storeString string = do
+storeString str = do
   idMap <- getIds
+  let string = Text.strip str
   case string `HashMap.lookup` idMap of
     Just key -> return key
     Nothing -> do
