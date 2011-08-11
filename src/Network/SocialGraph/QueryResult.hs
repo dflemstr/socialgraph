@@ -10,6 +10,7 @@ import Control.Applicative
 import Control.Arrow
 import Control.Monad
 import Control.Monad.State
+import Data.Word
 import Data.Aeson
 import Data.Text (Text)
 import Data.HashMap.Strict (HashMap)
@@ -43,21 +44,24 @@ data QueryEdge =
             }
   deriving (Show, Eq)
 
-toGraph :: Monad m => Bool -> QueryGraph -> StateT StringCache m Graph
-toGraph close qresult = do
-  nodesSC <- storeNodes $ nodes qresult
+toGraph :: Monad m => Word -> Bool -> QueryGraph -> StateT StringCache m Graph
+toGraph iter close qresult = do
+  nodesSC <- storeNodes iter $ nodes qresult
   edgesSC <- storeEdges . HashMap.map fst $ nodesSC
   let pureGraph = Graph.Graph { Graph.nodes = HashMap.map snd nodesSC
                               , Graph.edges = HashMap.map toEdge edgesSC
                               }
   if close
     then return pureGraph
-    else Graph.addGhostNodes pureGraph
+    else Graph.addGhostNodes iter pureGraph
 
-toNode :: Text -> QueryNode -> Node
-toNode url qnode =
+toNode :: Word -> Text -> QueryNode -> Node
+toNode iter url qnode =
   Node.Node { Node.identity = Identity.make url
             , Node.attributes = attrs
+            , Node.directOutConnections = 0
+            , Node.directInConnections = 0
+            , Node.iteration = iter
             }
   where
     attrs = do
@@ -73,10 +77,10 @@ toEdge qedge =
     kinds = Maybe.mapMaybe Edge.identifyEdgeKind . types $ qedge
 
 storeNodes :: Monad m
-              => HashMap Text QueryNode
+              => Word -> HashMap Text QueryNode
               -> StateT StringCache m (HashMap Int (QueryNode, Node))
-storeNodes nodeHashMap = do
-  let assocs = map (\ (k, v) -> (k, (v, toNode k v))) $ HashMap.toList nodeHashMap
+storeNodes iter nodeHashMap = do
+  let assocs = map (\ (k, v) -> (k, (v, toNode iter k v))) $ HashMap.toList nodeHashMap
   assocsSC <- mapM (doLeft StringCache.storeString) assocs
   return $ HashMap.fromList assocsSC
 

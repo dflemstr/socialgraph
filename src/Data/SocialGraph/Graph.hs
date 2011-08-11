@@ -4,15 +4,20 @@ module Data.SocialGraph.Graph
        , empty
        , addGhostNodes
        , cleanEdges
+       , countEdges
        ) where
 
 import Control.Monad.State
+import Control.Arrow
+import Data.Word (Word)
 import Data.SocialGraph.Node (Node)
 import qualified Data.SocialGraph.Node as Node
 import Data.SocialGraph.Edge (Edge)
 import qualified Data.SocialGraph.Identity as Identity
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
@@ -41,8 +46,27 @@ cleanEdges g =
     nodeExists = flip IntSet.member keys
     keys = IntSet.fromList . HashMap.keys . nodes $ g
 
-addGhostNodes :: Monad m => Graph -> StateT StringCache m Graph
-addGhostNodes graph = do
+countEdges :: Graph -> Graph
+countEdges g =
+  g { nodes = HashMap.fromList . map (uncurry addTotals) . HashMap.toList $ nodes g}
+  where
+    addTotals k n = (k,
+                     n { Node.directInConnections = IntMap.findWithDefault 0 k incoming
+                       , Node.directOutConnections = IntMap.findWithDefault 0 k outgoing
+                       }
+                    )
+    (outgoing, incoming) = execState (doCountEdges . HashMap.keys . edges $ g) (IntMap.empty, IntMap.empty)
+
+doCountEdges :: [(Key, Key)] -> State (IntMap Word, IntMap Word) ()
+doCountEdges []              = return ()
+doCountEdges ((i, o) : rest) = do
+  modify $ addKey i *** addKey o
+  doCountEdges rest
+  where
+    addKey k = IntMap.insertWith (+) k 1
+
+addGhostNodes :: Monad m => Word -> Graph -> StateT StringCache m Graph
+addGhostNodes iter graph = do
   ghostNodes <- mapM makeNode $ IntSet.toList unregistered
   return Graph { nodes = nodes graph `HashMap.union` HashMap.fromList ghostNodes
                , edges = edges graph
@@ -59,4 +83,7 @@ addGhostNodes graph = do
       return (k,
               Node.Node { Node.identity = Identity.make url
                         , Node.attributes = []
+                        , Node.directInConnections = 0
+                        , Node.directOutConnections = 0
+                        , Node.iteration = iter
                         })

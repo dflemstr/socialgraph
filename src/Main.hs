@@ -3,8 +3,8 @@ module Main (main) where
 
 import Prelude hiding (log)
 import Data.Data
-import Control.Applicative
 import Control.Monad.State
+import Data.Word
 import qualified Data.Gephi as Gephi
 import Data.SocialGraph.Graph (Graph)
 import qualified Data.SocialGraph.Graph as Graph
@@ -17,7 +17,6 @@ import qualified Text.XML.Light as XML
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.IntSet as IntSet
 import qualified Data.List as List
 import Data.StringCache (StringCache)
 import qualified Data.StringCache as StringCache
@@ -55,7 +54,7 @@ runWithConfig config = do
   allURIs <- getURIs config
   log "Fetching initial graph data..."
   let mkURL = queryURL config
-      levels = recurseLevels config
+      levels = fromIntegral $ recurseLevels config
       getGephi = Convert.graphToGexf =<< getFullGraph (closeGraph config) (filterIdentity config) mkURL allURIs levels
   gephi <- evalStateT getGephi StringCache.empty
   log "Writing output..."
@@ -64,16 +63,17 @@ runWithConfig config = do
   write $ XML.ppTopElement xml
   log "Done."
 
-getFullGraph :: Bool -> (Identity -> Bool) -> (Text -> Text) -> [Text] -> Int -> StateT StringCache IO Graph
-getFullGraph close fil mkURL = go Graph.empty
+getFullGraph :: Bool -> (Identity -> Bool) -> (Text -> Text) -> [Text] -> Word -> StateT StringCache IO Graph
+getFullGraph close fil mkURL us iters = go Graph.empty us iters
   where
-    go graph _    r | r < 0 = return graph -- $ if close then Graph.cleanEdges graph else graph
     go graph urls r = do
       lift $ log $ "Fetching identities (" ++ show r ++ " recursions left)"
-      newGraph <- fetchGraphs (close && r == 0) fil mkURL urls
+      newGraph <- fetchGraphs (iters - r) (close && r == 0) fil mkURL urls
       let !combinedGraph = newGraph `Graph.merge` graph
       newUrls <- mapM (StringCache.getString . fst) ((HashMap.toList . Graph.nodes) newGraph)
-      go combinedGraph newUrls $ r - 1
+      if r == 0
+        then return $ if close then Graph.cleanEdges . Graph.countEdges $ combinedGraph else combinedGraph
+        else go combinedGraph newUrls $ r - 1
 
 getURIs :: Configuration -> IO [Text]
 getURIs config = do
@@ -84,18 +84,18 @@ readURIs :: FilePath -> IO [String]
 readURIs "" = return []
 readURIs ufile = fmap lines $ readFile ufile
 
-fetchGraphs :: Bool -> (Identity -> Bool) -> (Text -> Text) -> [Text] -> StateT StringCache IO Graph
-fetchGraphs close fil mkQueryURI urls = do
+fetchGraphs :: Word -> Bool -> (Identity -> Bool) -> (Text -> Text) -> [Text] -> StateT StringCache IO Graph
+fetchGraphs iter close fil mkQueryURI urls = do
   graphs <- mapM fetchGraphFromParam params
-  return $ List.foldl' (flip Graph.merge) Graph.empty graphs
+  return $ Graph.cleanEdges . removeIdentities fil . List.foldl' (flip Graph.merge) Graph.empty $ graphs
   where
     urlCount = length urls
-    fetchGraphFromParam = uncurry3 $ fetchGraph close fil urlCount 3
+    fetchGraphFromParam = uncurry3 $ fetchGraph iter close urlCount 3
     params = zip3 queryURIs urls [1..]
     queryURIs = map mkQueryURI urls
 
-fetchGraph :: Bool -> (Identity -> Bool) -> Int -> Int -> Text -> Text -> Int -> StateT StringCache IO Graph
-fetchGraph close fil count numRetries url displayName index = do
+fetchGraph :: Word -> Bool -> Int -> Int -> Text -> Text -> Int -> StateT StringCache IO Graph
+fetchGraph iter close count numRetries url displayName index = do
   lift $ log $ " (" ++ show index ++ "/" ++ show count ++ ") Fetching " ++ Text.unpack displayName
   result <- lift $ JSON.fetchAndParse url
   case result of
@@ -106,29 +106,22 @@ fetchGraph close fil count numRetries url displayName index = do
         let dname = Text.unpack displayName
         lift $ log $ " Error while fetching " ++ dname ++ ": " ++ Text.unpack err
         lift $ log $ " -> Retrying " ++ dname ++ " (" ++ show (numRetries - 1) ++ " retries left)"
-        fetchGraph close fil count (numRetries - 1) url displayName index
-    Right r -> removeIdentities fil <$> QueryResult.toGraph close r
+        fetchGraph iter close count (numRetries - 1) url displayName index
+    Right r -> QueryResult.toGraph iter close r
 
 removeIdentities :: (Identity -> Bool) -> Graph -> Graph
 removeIdentities f g =
-  Graph.Graph { Graph.nodes = HashMap.filterWithKey (\ k _ -> shouldKeep k) $ Graph.nodes g
-              , Graph.edges =
-                HashMap.filterWithKey
-                (\ (k1, k2) _ -> (shouldKeep k1 && shouldKeep k2)) $
-                Graph.edges g
-              }
-  where
-    shouldKeep = flip IntSet.member toKeep
-    toKeep = IntSet.fromList . HashMap.keys . HashMap.filter (f . Node.identity) . Graph.nodes $ g
+  g { Graph.nodes = HashMap.filter (f . Node.identity) . Graph.nodes $ g }
 
 filterIdentity :: Configuration -> Identity -> Bool
 filterIdentity cfg =
   fil
   where
-    fil (Identity.Ident uri _) = not (noIdents cfg) && uriPattern `Text.isInfixOf` uri
-    fil (Identity.PK    uri _) = not (noPKs cfg)    && uriPattern `Text.isInfixOf` uri
-    fil (Identity.URL   uri)   = not (noURLs cfg)   && uriPattern `Text.isInfixOf` uri
-    fil (Identity.URI   uri)   = not (noURIs cfg)   && uriPattern `Text.isInfixOf` uri
+    fil (Identity.Ident uri _) = not (noIdents cfg) && testURI uri
+    fil (Identity.PK    uri _) = not (noPKs cfg)    && testURI uri
+    fil (Identity.URL   uri)   = not (noURLs cfg)   && testURI uri
+    fil (Identity.URI   uri)   = not (noURIs cfg)   && testURI uri
+    testURI = if Text.null uriPattern then const True else Text.isInfixOf uriPattern
     uriPattern = Text.pack $ matchURI cfg
 
 putErrLn :: String -> IO ()

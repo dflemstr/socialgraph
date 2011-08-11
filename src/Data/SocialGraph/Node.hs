@@ -6,11 +6,15 @@ module Data.SocialGraph.Node
        , identifyAttributeKind
        ) where
 
+import Data.Word
 import Data.SocialGraph.Identity (Identity)
 import Data.Text (Text)
 
 data Node =
   Node { identity :: !Identity
+       , directOutConnections :: !Word
+       , directInConnections :: !Word
+       , iteration :: !Word
        , attributes :: [(AttributeKind, Text)]
        } deriving (Eq, Show, Ord)
 

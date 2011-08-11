@@ -41,7 +41,13 @@ makeGephiNode key node =
              }
   where
     attvalues = mkAttvalues . Node.attributes $ node
-    mkAttvalues = map (\ (kind, text) -> Gephi.Attvalue (fromEnum kind) text)
+    mkAttvalues =
+      (++ [ Gephi.Attvalue incomingAttrId . Text.pack . show . Node.directInConnections $ node
+          , Gephi.Attvalue outgoingAttrId . Text.pack . show . Node.directOutConnections $ node
+          , Gephi.Attvalue iterationAttrId . Text.pack . show . Node.iteration $ node
+          ]
+      ) .
+      map (\ (kind, text) -> Gephi.Attvalue (fromEnum kind) text)
 
 makeGephiEdge :: Monad m => Int -> Int -> Edge.Edge -> StateT StringCache m (Gephi.Edge Int)
 makeGephiEdge fromKey toKey edge = do
@@ -58,6 +64,15 @@ makeGephiEdge fromKey toKey edge = do
     attvalues = [Gephi.Attvalue 0 $ Text.intercalate "|" kindNames]
     kindNames = map Edge.edgeKindName . Edge.edgeKinds $ edge
 
+incomingAttrId :: Int
+incomingAttrId = fromEnum (maxBound :: Node.AttributeKind) + 1
+
+outgoingAttrId :: Int
+outgoingAttrId = fromEnum (maxBound :: Node.AttributeKind) + 2
+
+iterationAttrId :: Int
+iterationAttrId = fromEnum (maxBound :: Node.AttributeKind) + 3
+
 nodeAttributeDecl :: Gephi.AttributeDecl Int
 nodeAttributeDecl =
   Gephi.AttributeDecl { Gephi.declClass = Gephi.ClassNode
@@ -65,13 +80,34 @@ nodeAttributeDecl =
                       , Gephi.declAttrs = attrs
                       }
   where
-    attrs = map mkAttr [minBound .. maxBound]
+    attrs = map mkAttr [minBound .. maxBound] ++ [incomingAttr, outgoingAttr, iterationAttr]
     mkAttr :: Node.AttributeKind -> Gephi.Attribute Int
     mkAttr kind =
       Gephi.Attribute { Gephi.attrId = fromEnum kind
                       , Gephi.attrTitle = Text.pack . show $ kind
                       , Gephi.attrType = Gephi.AttrString
                       , Gephi.attrDefault = Nothing
+                      , Gephi.attrOptions = Nothing
+                      }
+    incomingAttr =
+      Gephi.Attribute { Gephi.attrId = incomingAttrId
+                      , Gephi.attrTitle = "Incoming connections"
+                      , Gephi.attrType = Gephi.AttrInteger
+                      , Gephi.attrDefault = Just "0"
+                      , Gephi.attrOptions = Nothing
+                      }
+    outgoingAttr =
+      Gephi.Attribute { Gephi.attrId = outgoingAttrId
+                      , Gephi.attrTitle = "Outgoing connections"
+                      , Gephi.attrType = Gephi.AttrInteger
+                      , Gephi.attrDefault = Just "0"
+                      , Gephi.attrOptions = Nothing
+                      }
+    iterationAttr =
+      Gephi.Attribute { Gephi.attrId = iterationAttrId
+                      , Gephi.attrTitle = "Iteration"
+                      , Gephi.attrType = Gephi.AttrInteger
+                      , Gephi.attrDefault = Just "0"
                       , Gephi.attrOptions = Nothing
                       }
 
