@@ -87,7 +87,7 @@ readURIs ufile = fmap lines $ readFile ufile
 fetchGraphs :: Word -> Bool -> (Identity -> Bool) -> (Text -> Text) -> [Text] -> StateT StringCache IO Graph
 fetchGraphs iter close fil mkQueryURI urls = do
   graphs <- mapM fetchGraphFromParam params
-  return $ Graph.cleanEdges . removeIdentities fil . List.foldl' (flip Graph.merge) Graph.empty $ graphs
+  return $ removeIdentities fil . List.foldl' (flip Graph.merge) Graph.empty $ graphs
   where
     urlCount = length urls
     fetchGraphFromParam = uncurry3 $ fetchGraph iter close urlCount 3

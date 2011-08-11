@@ -28,9 +28,10 @@ xmlGraph graph =
       Just $ attribute "idtype" (Text.unpack . gephiIdType $ (undefined :: a)),
       Just . attribute "defaultedgetype" . xmlEdgeType . graphDefaultEdgeType $ graph,
       fmap (attribute "mode" . xmlMode) $ graphMode graph])
-  (map XML.Elem ((xmlNodes . graphNodes $ graph) :
-                 (xmlEdges . graphEdges $ graph) :
-                 (xmlAttributeDecls . graphAttributeDecls $ graph))) Nothing
+  (map XML.Elem ((xmlAttributeDecls . graphAttributeDecls $ graph) ++
+                 [ (xmlNodes . graphNodes $ graph)
+                 , (xmlEdges . graphEdges $ graph)
+                 ])) Nothing
 
 xmlNodes :: Id a => [Node a] -> XML.Element
 xmlNodes nodes =
