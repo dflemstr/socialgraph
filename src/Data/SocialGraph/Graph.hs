@@ -10,6 +10,7 @@ module Data.SocialGraph.Graph
 import Control.Monad.State
 import Control.Arrow
 import Data.Word (Word)
+import qualified Data.StringIntern as StringIntern
 import Data.SocialGraph.Node (Node)
 import qualified Data.SocialGraph.Node as Node
 import Data.SocialGraph.Edge (Edge)
@@ -19,8 +20,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
-import Data.StringCache (StringCache)
-import qualified Data.StringCache as StringCache
 
 data Graph =
   Graph { nodes :: HashMap Key Node
@@ -65,7 +64,7 @@ doCountEdges ((i, o) : rest) = do
   where
     addKey k = IntMap.insertWith (+) k 1
 
-addGhostNodes :: Monad m => Word -> Graph -> StateT StringCache m Graph
+addGhostNodes :: Word -> Graph -> Graph
 addGhostNodes iter graph = do
   ghostNodes <- mapM makeNode $ IntSet.toList unregistered
   return Graph { nodes = nodes graph `HashMap.union` HashMap.fromList ghostNodes
@@ -78,12 +77,13 @@ addGhostNodes iter graph = do
     allExternal = outgoing `IntSet.union` incoming
     registered = IntSet.fromList . HashMap.keys . nodes $ graph
     unregistered = allExternal `IntSet.difference` registered
-    makeNode k = do
-      url <- StringCache.getString k
-      return (k,
-              Node.Node { Node.identity = Identity.make url
-                        , Node.attributes = []
-                        , Node.directInConnections = 0
-                        , Node.directOutConnections = 0
-                        , Node.iteration = iter
-                        })
+    makeNode url =
+      (urlSymbol,
+       Node.Node { Node.identity = Identity.make urlSymbol
+                 , Node.attributes = []
+                 , Node.directInConnections = 0
+                 , Node.directOutConnections = 0
+                 , Node.iteration = iter
+                 })
+      where
+        urlSymbol = StringIntern.internSymbol url

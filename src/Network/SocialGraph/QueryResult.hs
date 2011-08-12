@@ -15,8 +15,6 @@ import Data.Aeson
 import Data.Text (Text)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.StringCache (StringCache)
-import qualified Data.StringCache as StringCache
 import Data.SocialGraph.Node (Node)
 import qualified Data.SocialGraph.Node as Node
 import Data.SocialGraph.Edge (Edge)

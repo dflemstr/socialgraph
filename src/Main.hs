@@ -18,8 +18,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.List as List
-import Data.StringCache (StringCache)
-import qualified Data.StringCache as StringCache
 import qualified Data.SocialGraph.Convert as Convert
 import System.Console.CmdArgs.Implicit
 import System.IO as IO

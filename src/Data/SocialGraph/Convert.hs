@@ -10,18 +10,16 @@ import qualified Data.SocialGraph.Edge as Edge
 import qualified Data.SocialGraph.Identity as Identity
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
-import Data.StringCache (StringCache)
-import qualified Data.StringCache as StringCache
 import qualified Data.Maybe as Maybe
 
-graphToGexf :: Monad m => Graph -> StateT StringCache m (Gephi.Gexf Int)
+graphToGexf :: Monad m => Graph -> Gephi.Gexf Int
 graphToGexf graph = do
   g <- graphToGephiGraph graph
   return Gephi.Gexf { Gephi.gexfMeta = Just gexfMetadata
                     , Gephi.gexfGraph = g
                     }
 
-graphToGephiGraph :: Monad m => Graph -> StateT StringCache m (Gephi.Graph Int)
+graphToGephiGraph :: Monad m => Graph -> Gephi.Graph Int
 graphToGephiGraph graph = do
   edges <- mapM (\ ((f,t),v) -> makeGephiEdge f t v) . HashMap.toList $ Graph.edges graph
   let decls = [nodeAttributeDecl, edgeAttributeDecl]
